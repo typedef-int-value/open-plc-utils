@@ -146,9 +146,7 @@ signed ar7x00_psin(struct _file_ *pib, uint32_t value, uint32_t index)
  *
  *--------------------------------------------------------------------*/
 
-static signed psin(struct _file_ *pib)
-
-{
+static signed psin(struct _file_ *pib) {
   unsigned index = 0;
   unsigned count = 0;
   unsigned limit = pibscalers(pib);
@@ -217,56 +215,72 @@ static signed psin(struct _file_ *pib)
       if (write(pib->file, &tmp, sizeof(tmp)) != sizeof(tmp)) {
         error(1, errno, "Can't save %s", pib->name);
       }
+      if ((count - 1) == limit)
+        return 0;
     }
 
     while (nobreak(c)) {
       c = getc(stdin);
     };
     count++;
+
+    if (limit == (count)) {
+      break;
+    }
   }
   return (0);
 }
 
-/*====================================================================*
- *
- *   int main (int argc, char const * argv [])
- *
- *
- *--------------------------------------------------------------------*/
+int file_copy(const char *src, const char *dst) {
+  FILE *in, *out;
+  char *buf;
+  size_t len;
 
-int main(int argc, char const *argv[])
+  if (!strcmpi(src, dst))
+    return 4; // 원본과 사본 파일이 동일하면 에러
 
-{
-  static char const *optv[] = {
-      "", "pibfile [< scalers]",
-      "load prescalers into int6000 and qca7000 parameter file",
-      (char const *)(0)};
+  if ((in = fopen(src, "rb")) == NULL)
+    return 1; // 원본 파일 열기
+  if ((out = fopen(dst, "wb")) == NULL) {
+    fclose(in);
+    return 2;
+  } // 대상 파일 만들기
+
+  if ((buf = (char *)malloc(16777216)) == NULL) {
+    fclose(in);
+    fclose(out);
+    return 10;
+  } // 버퍼 메모리 할당
+
+  while ((len = fread(buf, sizeof(char), sizeof(buf), in)) != NULL)
+    if (fwrite(buf, sizeof(char), len, out) == 0) {
+      fclose(in);
+      fclose(out);
+      free(buf);
+      _unlink(dst); // 에러난 파일 지우고 종료
+      return 3;
+    }
+
+  fclose(in);
+  fclose(out);
+  free(buf); // 메모리 할당 해제
+
+  return 0;
+}
+
+void set_prescaler(const char *from_path, const char *to_path) {
   struct _file_ pib;
-  signed c;
-  optind = 1;
-  while ((c = getoptv(argc, argv, optv)) != -1) {
-    switch ((char)(c)) {
-    default:
-      break;
-    }
+  file_copy(from_path, to_path);
+  pib.name = to_path;
+  if ((pib.file = open(pib.name, O_BINARY | O_RDWR)) == -1) {
+    error(1, errno, "Can't open %s", pib.name);
+  } else if (pibfile(&pib)) {
+    error(1, errno, "Bad PIB file: %s", pib.name);
+  } else if (psin(&pib)) {
+    error(1, ECANCELED, "%s", pib.name);
+  } else if (piblock(&pib)) {
+    error(1, ECANCELED, "%s", pib.name);
   }
-  argc -= optind;
-  argv += optind;
-  if (argc > 1) {
-    error(1, ECANCELED, "Only one target file allowed");
-  }
-  if ((argc) && (*argv)) {
-    pib.name = *argv;
-    if ((pib.file = open(pib.name, O_BINARY | O_RDWR)) == -1) {
-      error(1, errno, "Can't open %s", pib.name);
-    } else if (pibfile(&pib)) {
-      error(1, errno, "Bad PIB file: %s", pib.name);
-    } else if (psin(&pib)) {
-      error(1, ECANCELED, "%s", pib.name);
-    } else if (piblock(&pib)) {
-      error(1, ECANCELED, "%s", pib.name);
-    }
-    close(pib.file);
-  }
+  close(pib.file);
   return (0);
 }
