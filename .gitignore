@@ -11,3 +11,8 @@ t.*
 temp.*
 test.*
 *.a
+/VisualStudioNET/.vs
+/VisualStudioNET/Release
+/cmake-build-x64
+Release
+*.user
