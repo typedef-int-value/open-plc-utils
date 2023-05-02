@@ -4,7 +4,8 @@
 extern "C" {
 #endif
 
-signed prescaler_in(const char *to_path);
+signed prescaler_in(const char *from_path, const char *prescaler_path,
+                    const char *to_path);
 
 #ifdef __cplusplus
 }

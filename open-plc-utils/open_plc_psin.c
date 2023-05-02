@@ -331,12 +331,12 @@ static signed ps_in(struct _file_ *pib, struct _file_ *prescaler) {
   return (0);
 }
 
-signed prescaler_in(const char *to_path) {
+signed prescaler_in(const char *from_path, const char* prescaler_path, const char* to_path) {
   struct _file_ pib;
-  pib.name = to_path;
+  pib.name = from_path;
 
   struct _file_ prescaler;
-  prescaler.name = "full_power.txt";
+  prescaler.name = prescaler_path;
 
   if ((pib.file = open(pib.name, O_BINARY | O_RDWR)) == -1) {
     error(1, errno, "Can't open %s", pib.name);
