@@ -268,9 +268,8 @@ int file_copy(const char *src, const char *dst) {
   return 0;
 }
 
-void set_prescaler(const char *from_path, const char *to_path) {
+void set_prescaler(const char *to_path) {
   struct _file_ pib;
-  file_copy(from_path, to_path);
   pib.name = to_path;
   if ((pib.file = open(pib.name, O_BINARY | O_RDWR)) == -1) {
     error(1, errno, "Can't open %s", pib.name);

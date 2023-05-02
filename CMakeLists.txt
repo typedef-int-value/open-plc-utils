@@ -21,11 +21,19 @@ add_compile_definitions(WINPCAP)
 
 file(GLOB_RECURSE PLC_SOURCES CONFIGURE_DEPENDS
   ./open-plc-utils/*.*
+  ./pib/pibpeek1.c
+  ./pib/pibpeek2.c
   ./pib/pibfile.c
   ./pib/piblock.c
   ./pib/pibscalers.c
   ./pib/pibfile1.c
   ./pib/pibfile2.c
+  ./key/SHA256Write.c
+  ./key/SHA256Reset.c
+  ./key/SHA256Fetch.c
+  ./key/SHA256Block.c
+  ./key/HPAVKeyNID.c
+  ./key/keys.c
   ./tools/*.*
 )
 
