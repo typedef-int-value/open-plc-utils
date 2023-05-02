@@ -44,7 +44,7 @@ int file_copy(const char *src, const char *dst) {
 int main(int argc, char const *argv[]) {
   file_copy("SECC_STM_ORG.pib", "SECC_STM_PRESCALER.pib");
   file_copy("SECC_STM_ORG.pib", "SECC_STM.pib");
-  set_prescaler("SECC_STM_PRESCALER.PIB");
+  prescaler_in("SECC_STM_PRESCALER.PIB");
   file_copy("SECC_STM_PRESCALER.pib", "SECC_STM_PRESCALER_MODPIB.pib");
   modpib("SECC_STM.pib");
   modpib("SECC_STM_PRESCALER_MODPIB.pib");

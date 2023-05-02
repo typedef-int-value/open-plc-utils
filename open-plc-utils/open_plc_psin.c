@@ -104,6 +104,98 @@
 #include "../key/keys.c"
 #endif
 
+signed ps_pibbfile1(struct _file_ const *file)
+{
+  struct simple_pib simple_pib;
+  if (lseek(file->file, 0, SEEK_SET)) {
+    error(1, errno, FILE_CANTHOME, file->name);
+  }
+  if (read(file->file, &simple_pib, sizeof(simple_pib)) != sizeof(simple_pib)) {
+    error(1, errno, FILE_CANTREAD, file->name);
+  }
+  if (lseek(file->file, 0, SEEK_SET)) {
+    error(1, errno, FILE_CANTHOME, file->name);
+  }
+  if ((simple_pib.RESERVED1) || (simple_pib.RESERVED2)) {
+    error(1, errno, PIB_BADCONTENT, file->name);
+  }
+  if (fdchecksum32(file->file, LE16TOH(simple_pib.PIBLENGTH), 0)) {
+    error(1, errno, PIB_BADCHECKSUM, file->name);
+  }
+  if (lseek(file->file, 0, SEEK_SET)) {
+    error(1, errno, FILE_CANTHOME, file->name);
+  }
+  return (0);
+}
+signed ps_pibfile2(struct _file_ const *file)
+{
+  struct nvm_header2 nvm_header;
+  uint32_t origin = ~0;
+  uint32_t offset = 0;
+  unsigned module = 0;
+  if (lseek(file->file, 0, SEEK_SET)) {
+    error(1, errno, FILE_CANTHOME, file->name);
+  }
+  do {
+    if (read(file->file, &nvm_header, sizeof(nvm_header)) !=
+        sizeof(nvm_header)) {
+      error(1, errno, NVM_HDR_CANTREAD, file->name, module);
+    }
+    if (LE16TOH(nvm_header.MajorVersion) != 1) {
+      error(1, errno, NVM_HDR_VERSION, file->name, module);
+    }
+    if (LE16TOH(nvm_header.MinorVersion) != 1) {
+      error(1, errno, NVM_HDR_VERSION, file->name, module);
+    }
+    if (checksum32(&nvm_header, sizeof(nvm_header), 0)) {
+      error(1, errno, NVM_HDR_CHECKSUM, file->name, module);
+    }
+    if (LE32TOH(nvm_header.PrevHeader) != origin) {
+      error(1, errno, NVM_HDR_LINK, file->name, module);
+    }
+    if (LE32TOH(nvm_header.ImageType) == NVM_IMAGE_PIB) {
+      if (fdchecksum32(file->file, LE32TOH(nvm_header.ImageLength),
+                       nvm_header.ImageChecksum)) {
+        error(1, errno, NVM_IMG_CHECKSUM, file->name, module);
+      }
+      if (lseek(file->file, 0, SEEK_SET)) {
+        error(1, errno, FILE_CANTHOME, file->name);
+      }
+      return (0);
+    }
+    if (fdchecksum32(file->file, LE32TOH(nvm_header.ImageLength),
+                     nvm_header.ImageChecksum)) {
+      error(1, errno, NVM_IMG_CHECKSUM, file->name, module);
+    }
+    origin = offset;
+    offset = LE32TOH(nvm_header.NextHeader);
+    module++;
+  } while (~nvm_header.NextHeader);
+
+  if (lseek(file->file, 0, SEEK_SET)) {
+    error(1, errno, FILE_CANTHOME, file->name);
+  }
+  return (-1);
+}
+
+signed ps_pibfile(struct _file_ const *file)
+{
+  uint32_t version;
+  if (read(file->file, &version, sizeof(version)) != sizeof(version)) {
+    error(1, errno, FILE_CANTREAD, file->name);
+  }
+  if (lseek(file->file, 0, SEEK_SET)) {
+    error(1, errno, FILE_CANTHOME, file->name);
+  }
+  if (LE32TOH(version) == 0x60000000) {
+    return (-1);
+  }
+  if (LE32TOH(version) == 0x00010001) {
+    return (ps_pibfile2(file));
+  }
+  return (ps_pibbfile1(file));
+}
+
 /*====================================================================*
  *
  *
@@ -145,13 +237,19 @@ signed ar7x00_psin(struct _file_ *pib, uint32_t value, uint32_t index)
  *
  *
  *--------------------------------------------------------------------*/
+unsigned char read_c(struct _file_ *prescaler, signed char *c) {
+  if (read(prescaler->file, c, 1) == 1)
+    return 1;
 
-static signed psin(struct _file_ *pib) {
+  return 0;
+}
+
+static signed ps_in(struct _file_ *pib, struct _file_ *prescaler) {
   unsigned index = 0;
   unsigned count = 0;
   unsigned limit = pibscalers(pib);
   uint32_t value = 0;
-  signed c;
+  signed char c;
   if ((limit != INT_CARRIERS) && (limit != AMP_CARRIERS) &&
       (limit != PLC_CARRIERS)) {
     error(1, 0, "Don't understand this PIB's prescaler format");
@@ -167,13 +265,15 @@ static signed psin(struct _file_ *pib) {
       error(1, errno, FILE_CANTSEEK, pib->name);
     }
   }
-  while ((c = getc(stdin)) != EOF) {
+
+  prescaler->file = open(prescaler->name, O_TEXT | O_RDONLY);
+  while (read_c(prescaler, &c)) {
     if (isspace(c)) {
       continue;
     }
     if ((c == '#') || (c == ';')) {
       do {
-        c = getc(stdin);
+        read_c(prescaler, &c);
       } while (nobreak(c));
       continue;
     }
@@ -181,7 +281,7 @@ static signed psin(struct _file_ *pib) {
     while (isdigit(c)) {
       index *= 10;
       index += c - '0';
-      c = getc(stdin);
+      read_c(prescaler, &c);
     }
     if (index != count) {
       error(1, ECANCELED, "Carrier %d out of order", index);
@@ -190,13 +290,13 @@ static signed psin(struct _file_ *pib) {
       error(1, EOVERFLOW, "Too many prescalers");
     }
     while (isblank(c)) {
-      c = getc(stdin);
+      read_c(prescaler, &c);
     }
     value = 0;
     while (isxdigit(c)) {
       value *= 16;
       value += todigit(c);
-      c = getc(stdin);
+      read_c(prescaler, &c);
     }
     if (limit == INT_CARRIERS) {
       value = HTOLE32(value);
@@ -220,7 +320,7 @@ static signed psin(struct _file_ *pib) {
     }
 
     while (nobreak(c)) {
-      c = getc(stdin);
+      read_c(prescaler, &c);
     };
     count++;
 
@@ -231,51 +331,18 @@ static signed psin(struct _file_ *pib) {
   return (0);
 }
 
-int file_copy(const char *src, const char *dst) {
-  FILE *in, *out;
-  char *buf;
-  size_t len;
-
-  if (!strcmpi(src, dst))
-    return 4; // 원본과 사본 파일이 동일하면 에러
-
-  if ((in = fopen(src, "rb")) == NULL)
-    return 1; // 원본 파일 열기
-  if ((out = fopen(dst, "wb")) == NULL) {
-    fclose(in);
-    return 2;
-  } // 대상 파일 만들기
-
-  if ((buf = (char *)malloc(16777216)) == NULL) {
-    fclose(in);
-    fclose(out);
-    return 10;
-  } // 버퍼 메모리 할당
-
-  while ((len = fread(buf, sizeof(char), sizeof(buf), in)) != NULL)
-    if (fwrite(buf, sizeof(char), len, out) == 0) {
-      fclose(in);
-      fclose(out);
-      free(buf);
-      _unlink(dst); // 에러난 파일 지우고 종료
-      return 3;
-    }
-
-  fclose(in);
-  fclose(out);
-  free(buf); // 메모리 할당 해제
-
-  return 0;
-}
-
-void set_prescaler(const char *to_path) {
+signed prescaler_in(const char *to_path) {
   struct _file_ pib;
   pib.name = to_path;
+
+  struct _file_ prescaler;
+  prescaler.name = "full_power.txt";
+
   if ((pib.file = open(pib.name, O_BINARY | O_RDWR)) == -1) {
     error(1, errno, "Can't open %s", pib.name);
-  } else if (pibfile(&pib)) {
+  } else if (ps_pibfile(&pib)) {
     error(1, errno, "Bad PIB file: %s", pib.name);
-  } else if (psin(&pib)) {
+  } else if (ps_in(&pib, &prescaler)) {
     error(1, ECANCELED, "%s", pib.name);
   } else if (piblock(&pib)) {
     error(1, ECANCELED, "%s", pib.name);
