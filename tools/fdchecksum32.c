@@ -24,7 +24,6 @@
 #include "../tools/memory.h"
 
 uint32_t fdchecksum32 (int fd, register size_t extent, register uint32_t checksum)
-
 {
   uint32_t memory;
   while (extent >= sizeof(memory)) {
@@ -34,10 +33,7 @@ uint32_t fdchecksum32 (int fd, register size_t extent, register uint32_t checksu
     extent -= sizeof(memory);
     checksum ^= memory;
   }
-  if (checksum != 0xffffffff) {
-    // something was wrong.
-    printf("checksum error\n");
-  }
+
   return (~checksum);
 }
 

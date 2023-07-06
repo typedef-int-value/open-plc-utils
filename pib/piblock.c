@@ -63,71 +63,65 @@
  *
  *--------------------------------------------------------------------*/
 
-static signed pibchain2 (struct _file_ const * file)
+static signed pibchain2(struct _file_ const *file)
 
 {
-	unsigned module = 0;
-	struct nvm_header2 nvm_header;
-	uint32_t prev = ~0;
-	uint32_t next = 0;
-	if (lseek (file->file, 0, SEEK_SET))
-	{
-		error (1, errno, NVM_IMG_CHECKSUM, file->name, module);
-	}
-	do
-	{
-		if (read (file->file, &nvm_header, sizeof (nvm_header)) != sizeof (nvm_header))
-		{
-			error (1, errno, NVM_HDR_CANTREAD, file->name, module);
-		}
-		if (LE16TOH (nvm_header.MajorVersion) != 1)
-		{
-			error (1, errno, NVM_HDR_VERSION, file->name, module);
-		}
-		if (LE16TOH (nvm_header.MinorVersion) != 1)
-		{
-			error (1, errno, NVM_HDR_VERSION, file->name, module);
-		}
-		if (checksum32 (&nvm_header, sizeof (nvm_header), 0))
-		{
-			error (1, errno, NVM_HDR_CHECKSUM, file->name, module);
-		}
-		if (LE32TOH (nvm_header.PrevHeader) != prev)
-		{
-			error (1, errno, NVM_HDR_LINK, file->name, module);
-		}
-		if (LE32TOH (nvm_header.ImageType) == NVM_IMAGE_PIB)
-		{
-			nvm_header.ImageChecksum = fdchecksum32 (file->file, LE32TOH (nvm_header.ImageLength), 0);
-			if (lseek (file->file, (off_t)(0) - LE32TOH (nvm_header.ImageLength), SEEK_CUR) == -1)
-			{
-				error (1, errno, FILE_CANTHOME, file->name);
-			}
-			nvm_header.HeaderChecksum = checksum32 (&nvm_header, sizeof (nvm_header), nvm_header.HeaderChecksum);
-			if (lseek (file->file, (off_t)(0) - sizeof (nvm_header), SEEK_CUR) == -1)
-			{
-				error (1, errno, FILE_CANTHOME, file->name);
-			}
-			if (write (file->file, &nvm_header, sizeof (nvm_header)) != sizeof (nvm_header))
-			{
-				error (1, errno, FILE_CANTSAVE, file->name);
-			}
-			if (lseek (file->file, (off_t)(0) - sizeof (nvm_header), SEEK_CUR) == -1)
-			{
-				error (1, errno, FILE_CANTHOME, file->name);
-			}
-			break;
-		}
-		if (fdchecksum32 (file->file, LE32TOH (nvm_header.ImageLength), nvm_header.ImageChecksum))
-		{
-			error (1, errno, NVM_IMG_CHECKSUM, file->name, module);
-		}
-		prev = next;
-		next = LE32TOH (nvm_header.NextHeader);
-		module++;
-	}
-	while (~nvm_header.NextHeader);
-	return (0);
+  unsigned module = 0;
+  struct nvm_header2 nvm_header;
+  uint32_t prev = ~0;
+  uint32_t next = 0;
+  if (lseek(file->file, 0, SEEK_SET)) {
+    error(1, errno, NVM_IMG_CHECKSUM, file->name, module);
+  }
+  do {
+    uint32_t nvm_header_size = sizeof(nvm_header);
+    if (read(file->file, &nvm_header, nvm_header_size) != nvm_header_size) {
+      error(1, errno, NVM_HDR_CANTREAD, file->name, module);
+    }
+    if (LE16TOH(nvm_header.MajorVersion) != 1) {
+      error(1, errno, NVM_HDR_VERSION, file->name, module);
+    }
+    if (LE16TOH(nvm_header.MinorVersion) != 1) {
+      error(1, errno, NVM_HDR_VERSION, file->name, module);
+    }
+    if (checksum32(&nvm_header, sizeof(nvm_header), 0)) {
+      error(1, errno, NVM_HDR_CHECKSUM, file->name, module);
+    }
+    if (LE32TOH(nvm_header.PrevHeader) != prev) {
+      error(1, errno, NVM_HDR_LINK, file->name, module);
+    }
+    if (LE32TOH(nvm_header.ImageType) == NVM_IMAGE_PIB) {
+      nvm_header.ImageChecksum =
+          fdchecksum32(file->file, LE32TOH(nvm_header.ImageLength), 0);
+      long seek = lseek(file->file, 0, SEEK_CUR);
+
+      seek = lseek(file->file, (off_t)(0) - LE32TOH(nvm_header.ImageLength), SEEK_CUR);
+      if (seek == -1) {
+        error(1, errno, FILE_CANTHOME, file->name);
+      }
+      nvm_header.HeaderChecksum = checksum32(&nvm_header, sizeof(nvm_header),
+                                             nvm_header.HeaderChecksum);
+      if (lseek(file->file, (off_t)(0) - sizeof(nvm_header), SEEK_CUR) == -1) {
+        error(1, errno, FILE_CANTHOME, file->name);
+      }
+      if (write(file->file, &nvm_header, sizeof(nvm_header)) !=
+          sizeof(nvm_header)) {
+        error(1, errno, FILE_CANTSAVE, file->name);
+      }
+      if (lseek(file->file, (off_t)(0) - sizeof(nvm_header), SEEK_CUR) == -1) {
+        error(1, errno, FILE_CANTHOME, file->name);
+      }
+      break;
+    }
+    if (fdchecksum32(file->file, LE32TOH(nvm_header.ImageLength),
+                     nvm_header.ImageChecksum)) {
+      error(1, errno, NVM_IMG_CHECKSUM, file->name, module);
+    }
+    prev = next;
+    next = LE32TOH(nvm_header.NextHeader);
+    module++;
+  } while (~nvm_header.NextHeader);
+  return (0);
 }
 
 /*====================================================================*
@@ -145,45 +139,37 @@ static signed pibchain2 (struct _file_ const * file)
  *--------------------------------------------------------------------*/
 
 
-signed piblock (struct _file_ const * file)
+signed piblock(struct _file_ const *file) {
+  struct simple_pib simple_pib;
+  if (lseek(file->file, 0, SEEK_SET)) {
+    error(1, errno, "1 " FILE_CANTHOME, file->name);
+  }
 
-{
-	struct simple_pib simple_pib;
-	if (lseek (file->file, 0, SEEK_SET))
-	{
-		error (1, errno, "1 " FILE_CANTHOME, file->name);
-	}
-	if (read (file->file, &simple_pib, sizeof (simple_pib)) != sizeof (simple_pib))
-	{
-		error (1, errno, FILE_CANTREAD, file->name);
-	}
-	if (lseek (file->file, 0, SEEK_SET))
-	{
-		error (1, errno, FILE_CANTHOME, file->name);
-	}
+  uint16_t pib_size = sizeof(simple_pib);
+  if (read(file->file, &simple_pib, pib_size) != pib_size) {
+    error(1, errno, FILE_CANTREAD, file->name);
+  }
+  if (lseek(file->file, 0, SEEK_SET)) {
+    error(1, errno, FILE_CANTHOME, file->name);
+  }
 
-
-  if (simple_pib.PIBVERSION == 0x0001 && simple_pib.RESERVED1 == 0x0001)
-  {
+  if (simple_pib.PIBVERSION == 0x0001 && simple_pib.RESERVED1 == 0x0001) {
     pibchain2(file);
+  } else {
+    simple_pib.CHECKSUM = fdchecksum32(
+        file->file, LE16TOH(simple_pib.PIBLENGTH), simple_pib.CHECKSUM);
+    if (lseek(file->file, 0, SEEK_SET)) {
+      error(1, errno, "2 " FILE_CANTHOME, file->name);
+    }
+    if (write(file->file, &simple_pib, sizeof(simple_pib)) !=
+        sizeof(simple_pib)) {
+      error(1, errno, FILE_CANTSAVE, file->name);
+    }
+    if (lseek(file->file, 0, SEEK_SET)) {
+      error(1, errno, FILE_CANTHOME, file->name);
+    }
   }
-  else
-  {
-	  simple_pib.CHECKSUM = fdchecksum32 (file->file, LE16TOH (simple_pib.PIBLENGTH), simple_pib.CHECKSUM);
-	  if (lseek (file->file, 0, SEEK_SET))
-	  {
-		  error (1, errno, "2 " FILE_CANTHOME, file->name);
-	  }
-	  if (write (file->file, &simple_pib, sizeof (simple_pib)) != sizeof (simple_pib))
-	  {
-		  error (1, errno, FILE_CANTSAVE, file->name);
-	  }
-	  if (lseek (file->file, 0, SEEK_SET))
-	  {
-		  error (1, errno, FILE_CANTHOME, file->name);
-	  }
-  }
-	return (0);
+  return (0);
 }
 
 

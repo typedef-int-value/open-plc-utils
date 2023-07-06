@@ -42,12 +42,8 @@ int file_copy(const char *src, const char *dst) {
 }
 
 int main(int argc, char const *argv[]) {
-  file_copy("SECC_STM_ORG.pib", "SECC_STM_PRESCALER.pib");
-  file_copy("SECC_STM_ORG.pib", "SECC_STM.pib");
-  prescaler_in("SECC_STM_PRESCALER.pib", "full_power.txt", "NEW_PIB.pib");
-  file_copy("SECC_STM_PRESCALER.pib", "SECC_STM_PRESCALER_MODPIB.pib");
-  modpib("SECC_STM.pib");
-  modpib("SECC_STM_PRESCALER_MODPIB.pib");
+  file_copy("EV_PLC_FULL.pib", "EV_PLC_NOT_FULL.pib");
+  prescaler_in("EV_PLC_NOT_FULL.pib", "not_full.txt");
 
   return (0);
 }

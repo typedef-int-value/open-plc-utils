@@ -243,7 +243,26 @@ unsigned char read_c(struct _file_ *prescaler, signed char *c) {
 
   return 0;
 }
-
+static void do_set_prescaler(struct _file_ *pib, unsigned limit, unsigned index, uint32_t value) {
+  if (limit == INT_CARRIERS) {
+    value = HTOLE32(value);
+    if (write(pib->file, &value, sizeof(value)) != sizeof(value)) {
+      error(1, errno, "Can't save %s", pib->name);
+    }
+  } else if (limit == AMP_CARRIERS) {
+    if (value & ~0x03FF) {
+      error(1, errno, "Position %d has invalid prescaler value", index);
+    }
+    if (ar7x00_psin(pib, value, index)) {
+      error(1, errno, "Can't update %s", pib->name);
+    }
+  } else if (limit == PLC_CARRIERS) {
+    uint8_t tmp = value & 0xff;
+    if (write(pib->file, &tmp, sizeof(tmp)) != sizeof(tmp)) {
+      error(1, errno, "Can't save %s", pib->name);
+    }
+  }
+}
 static signed ps_in(struct _file_ *pib, struct _file_ *prescaler) {
   unsigned index = 0;
   unsigned count = 0;
@@ -266,7 +285,7 @@ static signed ps_in(struct _file_ *pib, struct _file_ *prescaler) {
     }
   }
 
-  prescaler->file = open(prescaler->name, O_TEXT | O_RDONLY);
+   prescaler->file = open(prescaler->name, O_TEXT | O_RDONLY);
   while (read_c(prescaler, &c)) {
     if (isspace(c)) {
       continue;
@@ -298,26 +317,7 @@ static signed ps_in(struct _file_ *pib, struct _file_ *prescaler) {
       value += todigit(c);
       read_c(prescaler, &c);
     }
-    if (limit == INT_CARRIERS) {
-      value = HTOLE32(value);
-      if (write(pib->file, &value, sizeof(value)) != sizeof(value)) {
-        error(1, errno, "Can't save %s", pib->name);
-      }
-    } else if (limit == AMP_CARRIERS) {
-      if (value & ~0x03FF) {
-        error(1, errno, "Position %d has invalid prescaler value", index);
-      }
-      if (ar7x00_psin(pib, value, index)) {
-        error(1, errno, "Can't update %s", pib->name);
-      }
-    } else if (limit == PLC_CARRIERS) {
-      uint8_t tmp = value & 0xff;
-      if (write(pib->file, &tmp, sizeof(tmp)) != sizeof(tmp)) {
-        error(1, errno, "Can't save %s", pib->name);
-      }
-      if ((count - 1) == limit)
-        return 0;
-    }
+    do_set_prescaler(pib, limit, index, value);
 
     while (nobreak(c)) {
       read_c(prescaler, &c);
@@ -331,9 +331,9 @@ static signed ps_in(struct _file_ *pib, struct _file_ *prescaler) {
   return (0);
 }
 
-signed prescaler_in(const char *from_path, const char* prescaler_path, const char* to_path) {
+signed prescaler_in(const char *pib_path, const char* prescaler_path) {
   struct _file_ pib;
-  pib.name = from_path;
+  pib.name = pib_path;
 
   struct _file_ prescaler;
   prescaler.name = prescaler_path;
@@ -347,6 +347,9 @@ signed prescaler_in(const char *from_path, const char* prescaler_path, const cha
   } else if (piblock(&pib)) {
     error(1, ECANCELED, "%s", pib.name);
   }
+
   close(pib.file);
+  close(prescaler.file);
+
   return (0);
 }
